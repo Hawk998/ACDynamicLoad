@@ -1,3 +1,6 @@
+// scpiHelper.ts
+// Helper functions for communicating with SCPI devices via TCP sockets.
+// Provides utilities for setting modes, output, current, and reading power values.
 
 import { get } from 'http';
 import * as net from 'net';
@@ -5,20 +8,10 @@ import { logging } from './logging';
 const Port = 5025; // SCPI Port, default is 5025
 
 /**
- * createClient
  * Creates a TCP client and connects to the specified SCPI device.
- *
- * @param host - The IP address or hostname of the SCPI device.
- * @returns A Promise that resolves with the connected TCP client (net.Socket).
- * @throws An error if the connection fails.
- *
- * The function establishes a connection to the SCPI device on the specified port.
- * After connecting, it attempts to send the '*IDN?' command to retrieve the device identification.
- * If successful, the device name is logged to the console.
- *
- * Example usage:
- * const client = await createClient('192.168.100.173');
- * logging('Client connected:', client);
+ * Sends '*IDN?' to retrieve device identification.
+ * @param host IP address or hostname of SCPI device
+ * @returns Promise resolving with connected net.Socket
  */
 function createClient(host: string): Promise<net.Socket> {
     const client = new net.Socket();
@@ -48,18 +41,10 @@ function createClient(host: string): Promise<net.Socket> {
 }
 
 /**
- * sendCommand
- * Sends an SCPI command to the connected device and waits for a response.
- *
- * @param client - The TCP client socket connected to the SCPI device.
- * @param command - The SCPI command to be sent to the device.
- * @returns A Promise that resolves with an object containing the success status and the response message from the device.
- *          The object has the structure: { successful: boolean, msg: string }.
- * @throws An error if the command fails to send or if the device returns an error.
- *
- * Example usage:
- * const response = await sendCommand(client, 'MEAS:VOLT:DC?');
- * console.log(response.msg); // Logs the response from the device
+ * Sends an SCPI command to the device and waits for response.
+ * @param client Connected net.Socket
+ * @param command SCPI command string
+ * @returns Promise resolving with { successful, msg } object
  */
 async function sendCommand(client: net.Socket, command: string) {
     return new Promise<{ successful: boolean, msg: string }>((resolve, reject) => {
@@ -89,27 +74,12 @@ async function sendCommand(client: net.Socket, command: string) {
     });
 }
 
-/**
- * setVoltagePriorityMode 
- * Sets the device to Voltage Priority Mode (Constant Voltage Mode).
- *
- * @param HostIp - The IP address of the SCPI device.
- * @param OutputVoltageLimitCV - The voltage limit to be set in Voltage Priority Mode (in volts).
- * @param OutputCurrentLimitCV - The current limit to be set in Voltage Priority Mode (in amps).
- *
- * This function configures the device to operate in Voltage Priority Mode, where the voltage is regulated
- * while the current is limited to the specified maximum and minimum values. It sets the voltage and current
- * limits accordingly.
- *
- * Example usage:
- * await setVoltagePriorityMode('192.168.100.173', 12.5, 5.0);
- * // Sets the device to Voltage Priority Mode with a voltage limit of 12.5V and a current limit of ±5A.
- *
- * @throws An error if the connection fails or if the SCPI commands cannot be executed.
- */
-
 // -------- Set Functions -------
-// Voltage Priority Mode
+/**
+ * Sets device to Voltage Priority Mode (Constant Voltage Mode).
+ * Configures voltage and current limits.
+ * @param args HostIp, OutputVoltageLimitCV, OutputCurrentLimitCV
+ */
 export async function setVoltagePriorityMode(args: { HostIp: string, OutputVoltageLimitCV: number, OutputCurrentLimitCV: number }) {
     let client: net.Socket | null = null;
     const maxCurrent = Math.abs(args.OutputCurrentLimitCV);
@@ -134,7 +104,11 @@ export async function setVoltagePriorityMode(args: { HostIp: string, OutputVolta
     }
 }
 
-// Current Priority Mode
+/**
+ * Sets device to Current Priority Mode (Constant Current Mode).
+ * Configures current and voltage limits.
+ * @param args HostIp, OutputCurrentLimitCC, OutputVoltageLimitCC
+ */
 export async function setCurrentPriorityMode(args: { HostIp: string, OutputCurrentLimitCC: number, OutputVoltageLimitCC: number }) {
     let client: net.Socket | null = null;
     const minCurrent = Math.abs(args.OutputCurrentLimitCC);
@@ -156,6 +130,10 @@ export async function setCurrentPriorityMode(args: { HostIp: string, OutputCurre
     }
 }
 
+/**
+ * Sets the current setpoint for the device.
+ * @param args HostIp, CurrentSetPoint
+ */
 export async function setCurrentSetPoint(args: { HostIp: string, CurrentSetPoint: number }) {
     let client: net.Socket | null = null;
     try {
@@ -172,6 +150,12 @@ export async function setCurrentSetPoint(args: { HostIp: string, CurrentSetPoint
         
     }
 }
+
+/**
+ * Reads the output power value from the device (in Watts).
+ * @param args HostIp
+ * @returns Object with success status and power value
+ */
 export async function getSinkPowerValue(args: { HostIp: string}) {
     let client: net.Socket | null = null;
     let powerinW = {successful: false, msg: ''};
@@ -191,7 +175,10 @@ export async function getSinkPowerValue(args: { HostIp: string}) {
     }
 }
 
-// Set Output ON/OFF
+/**
+ * Sets the output state (ON/OFF) of the device.
+ * @param args HostIp, OutputState (boolean)
+ */
 export async function setOutput(args: { HostIp: string, OutputState: boolean }) {
     let client: net.Socket | null = null;
     try {
@@ -214,11 +201,16 @@ export async function setOutput(args: { HostIp: string, OutputState: boolean }) 
     }
 }
 
-// This function calculates the voltage and current based on the given power in watts.
+/**
+ * Calculates the current based on given power (kW) and voltage.
+ * Uses quadratic loss adjustment for 2 kW modules.
+ * @param args powerInkW, voltage
+ * @returns Object with calculated current
+ */
 export function defineVoltageCurrent(args: { powerInkW: number, voltage: number }) {
     //Power Adjustment
-    //const PowerWithLoss = 0.0069 * args.powerInkW ** 2 + 1 * args.powerInkW + 0.3884; // für 10 kW Module
-    const PowerWithLoss =  0.0035 * args.powerInkW ** 2 + 0.9858 * args.powerInkW + 0.5878 // für 2 kW Module
+    //const PowerWithLoss = 0.0069 * args.powerInkW ** 2 + 1 * args.powerInkW + 0.3884; //  10 kW 
+    const PowerWithLoss =  0.0035 * args.powerInkW ** 2 + 0.9858 * args.powerInkW + 0.5878 //  20 kW 
     const AdjustedPowerinkW = 2 * args.powerInkW - PowerWithLoss;
     const current = parseFloat(((AdjustedPowerinkW * 1000) / args.voltage).toFixed(2))
     return { current }

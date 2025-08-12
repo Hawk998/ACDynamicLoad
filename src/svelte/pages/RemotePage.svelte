@@ -1,23 +1,32 @@
+<!--
+RemotePage.svelte
+Displays remote web frontends for voltage and current priority sinks.
+Automatically opens browser windows for configured IPs and provides manual launch buttons.
+-->
 <script lang="ts">
+    // Import state management and lifecycle hooks
     import { splitScreenActive } from "../store/store";
     import { onMount } from "svelte";
     
     export const title = "Remote Frontend";
-    let scale = 1.0;
-    let width = 1900;
+    let scale = 1.0; // UI scale factor for responsive design
+    let width = 1900; // Current client width
     
-    // Config values
-    let voltageHostIP = "";
-    let currentHostIP = "";
-    let configLoaded = false;
-    let configError = false;
+    // Configuration values loaded from backend
+    let voltageHostIP = ""; // IP for voltage priority sink
+    let currentHostIP = ""; // IP for current priority sink
+    let configLoaded = false; // True if config loaded successfully
+    let configError = false; // True if config loading failed
 
+    // Update scale when width changes
     $: if (width) withChanged();
 
+    // Subscribe to split screen state (for future use)
     splitScreenActive.subscribe((value) => {
         console.log("splitScreen", value);
     });
 
+    // Load configuration and open browser windows on mount
     onMount(async () => {
         try {
             const config = await globalThis.api.invoke('getConfigFromFile');
@@ -26,7 +35,7 @@
             configLoaded = true;
             console.log("Remote config loaded:", { voltageHostIP, currentHostIP });
             
-            // Automatisch Browser-Fenster öffnen
+            // Automatically open browser windows for configured IPs
             if (voltageHostIP) {
                 setTimeout(() => openVoltageInNewTab(), 500);
             }
@@ -39,29 +48,38 @@
         }
     });
 
+    // Adjust scale based on client width
     function withChanged() {
         if (width < 1280) scale = width / 1280;
         else scale = 1;
         console.log("withChanged", width, scale);
     }
     
+    // Open voltage sink web frontend in new browser tab
     function openVoltageInNewTab() {
         window.open(`http://${voltageHostIP}/`, '_blank');
     }
     
+    // Open current sink web frontend in new browser tab
     function openCurrentInNewTab() {
         window.open(`http://${currentHostIP}/`, '_blank');
     }
 </script>
 
+<!--
+Main UI container for displaying remote sink web frontends.
+Shows loading, error, or browser launch info for each configured IP.
+-->
 <div bind:clientWidth={width} class="container">
     {#if !configLoaded && !configError}
+        <!-- Show loading message while configuration is loading -->
         <h1 class="responsive-headline">Loading Configuration...</h1>
     {:else if configError}
+        <!-- Show error message if configuration failed -->
         <h1 class="responsive-headline error">Error loading configuration</h1>
     {:else}
         <div class="dual-iframe-container">
-            <!-- Voltage Priority Sink -->
+            <!-- Voltage Priority Sink Section -->
             <div class="iframe-section">
                 <h2 class="iframe-title">Voltage Priority Sink ({voltageHostIP})</h2>
                 {#if !voltageHostIP}
@@ -72,6 +90,7 @@
                             <h3>🚀 Browser window opens automatically</h3>
                             <p>The web frontend will open in a separate browser window.</p>
                         </div>
+                        <!-- Manual launch button for voltage sink -->
                         <button class="open-external-btn" on:click={openVoltageInNewTab}>
                             <i class="fa fa-external-link"></i> Open again
                         </button>
@@ -80,7 +99,7 @@
                 {/if}
             </div>
             
-            <!-- Current Priority Sink -->
+            <!-- Current Priority Sink Section -->
             <div class="iframe-section">
                 <h2 class="iframe-title">Current Priority Sink ({currentHostIP})</h2>
                 {#if !currentHostIP}
@@ -91,6 +110,7 @@
                             <h3>🚀 Browser window opens automatically</h3>
                             <p>The web frontend will open in a separate browser window.</p>
                         </div>
+                        <!-- Manual launch button for current sink -->
                         <button class="open-external-btn" on:click={openCurrentInNewTab}>
                             <i class="fa fa-external-link"></i> Open again
                         </button>
@@ -102,6 +122,9 @@
     {/if}
 </div>
 
+<!--
+CSS styles for layout, browser launch info, error messages, and responsive design.
+-->
 <style lang="scss">
     @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
     

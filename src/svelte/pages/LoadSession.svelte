@@ -10,52 +10,53 @@
     
     export let title = "Tab";
 
-    // Slider state
-    let configError = false;
-    let configurationLoaded = false;
-    let kwValue: number = 11;
-    let lastkWValue: number | null = null;
-    let maxCurrentValue: number | null = null;
-    let maxCurrentInterval: TimerHandle | null = null;
-    let kwValueInterval: TimerHandle | null = null;
-    let actualCDSPowerValue: number = 0;
-    let actualCDSVoltageValue: number = 0;
-    let actualCDSCurrentValue: number = 0; 
-    let cdsPowerInterval: TimerHandle | null = null;
-    let sinkPowerValue: any = null;
-    let sinkPowerInterval: TimerHandle | null = null;
+    // --- State Variables ---
+    // Error and configuration state
+    let configError = false; // True if configuration loading failed
+    let configurationLoaded = false; // True if configuration loaded successfully
 
-    // Soft start state (removed - no ramping)
-    // let softStartRunning = false;
-    // let softStartInterval: TimerHandle | null = null;
+    // Power setpoint and measurement values
+    let kwValue: number = 11; // Current setpoint in kW
+    let lastkWValue: number | null = null; // Last sent setpoint
+    let maxCurrentValue: number | null = null; // Max current value from EVSE
+    let maxCurrentInterval: TimerHandle | null = null; // Interval for polling max current
+    let kwValueInterval: TimerHandle | null = null; // Interval for sending setpoint
+    let actualCDSPowerValue: number = 0; // Actual measured power value
+    let actualCDSVoltageValue: number = 0; // Actual measured voltage value
+    let actualCDSCurrentValue: number = 0; // Actual measured current value
+    let cdsPowerInterval: TimerHandle | null = null; // Interval for polling CDS values
+    let sinkPowerValue: any = null; // Sink power value from backend
+    let sinkPowerInterval: TimerHandle | null = null; // Interval for polling sink power
 
-    let currentHostIp: string = "";
-    let voltageHostIP: string = "";
-    let voltageLimit: number | null = null;
-    let currentLimit: number | null = null;
-    let maxkWValue: number | null = null;
-    let maxkWValueExternal: number | null = null;
-    let cds_ip: string = "";
+    // Host and configuration parameters
+    let currentHostIp: string = ""; // IP for current control
+    let voltageHostIP: string = ""; // IP for voltage control
+    let voltageLimit: number | null = null; // Voltage limit
+    let currentLimit: number | null = null; // Current limit
+    let maxkWValue: number | null = null; // Max allowed kW from config
+    let maxkWValueExternal: number | null = null; // Max allowed kW from EVSE
+    let cds_ip: string = ""; // CDS IP address
 
-    let setpointSent = false;
-    let started = false;
-    let isProcessing = false;
+    let started = false; // True if output is active
+    let isProcessing = false; // True if an operation is in progress
 
-    // Chart data arrays
-    let chart: Chart | null = null;
-    let chartCanvas: HTMLCanvasElement;
-    let timeLabels: string[] = [];
-    let voltageHistory: number[] = [];
-    let currentHistory: number[] = [];
-    let powerHistory: number[] = []; // Power in kW
-    let setpointHistory: number[] = []; // Setpoint in kW
-    let sinkPowerHistory: number[] = []; // Sink Power in kW
+    // --- Chart Data Arrays ---
+    let chart: Chart | null = null; // Chart.js instance
+    let chartCanvas: HTMLCanvasElement; // Canvas element for chart
+    let timeLabels: string[] = []; // Time labels for chart
+    let voltageHistory: number[] = []; // Voltage history
+    let currentHistory: number[] = []; // Current history
+    let powerHistory: number[] = []; // Power history (kW)
+    let setpointHistory: number[] = []; // Setpoint history (kW)
+    let sinkPowerHistory: number[] = []; // Sink power history (kW)
 
 
+    // --- Lifecycle: onMount ---
+    // Initializes chart, loads configuration, starts polling intervals
     onMount(async () => {
         
         
-        // Initialize chart first (before config loading)
+        // Initialize chart with empty data
         const initialChartData: ChartData = {
             timeLabels,
             voltageData: voltageHistory,
@@ -68,6 +69,7 @@
         chart = createPowerChart(chartCanvas, initialChartData);
         
         try {
+            // Load configuration from backend
             const config = await globalThis.api.invoke('getConfigFromFile');
             currentHostIp = config.currenthostIP || "";
             voltageHostIP = config.voltagehostIP || "";        
@@ -76,6 +78,7 @@
             maxkWValue = config.maxkWValue ?? null;
             cds_ip = config.cdsIP || "";
 
+            // Set backend modes for voltage and current control
             await globalThis.api.invoke("setVoltagePriorityMode", { HostIp: voltageHostIP, OutputVoltageLimitCV: voltageLimit, OutputCurrentLimitCV: currentLimit });
             await globalThis.api.invoke("setCurrentPriorityMode", { HostIp: currentHostIp, OutputCurrentLimitCC: currentLimit !== null ? currentLimit : null, OutputVoltageLimitCC: voltageLimit !== null ? voltageLimit + 10 : null });
             
@@ -87,14 +90,15 @@
                 updateMaxPowerLine(chart, maxkWValueExternal, timeLabels.length);
             }
             
+            // Set initial current setpoint
             await globalThis.api.invoke("setCurrentSetPoint", { HostIp: currentHostIp, CurrentSetPoint: 1 });
             maxCurrentInterval = setInterval(pollMaxCurrentValue, 2000);
-            pollMaxCurrentValue(); // Initialer Aufruf
+            pollMaxCurrentValue(); // Initial call
 
-            // Start Backend CDS Polling first
+            // Start backend polling for CDS values
             await globalThis.api.invoke("startPollingCDS", {});
             
-            // Single unified CDS polling interval (gets data from backend cache)
+            // Poll CDS values every 2 seconds
             cdsPowerInterval = setInterval(async () => {
                 try {
                     // Get all CDS values in one batch
@@ -104,7 +108,7 @@
                         globalThis.api.invoke("getLastCurrentValueCDS")
                     ]);
 
-                    // Debug logging
+                    // Debug logging for raw results
                     console.log("CDS Raw Results:", {
                         power: powerResult,
                         voltage: voltageResult,
@@ -114,7 +118,7 @@
                         currentType: typeof currentResult
                     });
 
-                    // Update power value
+                    // Update actual power value
                     if (powerResult !== null && powerResult !== undefined && !isNaN(Number(powerResult))) {
                         const newPower = Number(powerResult);
                         if (newPower !== actualCDSPowerValue) {
@@ -125,7 +129,7 @@
                         console.log("Power result invalid:", powerResult);
                     }
 
-                    // Update voltage value  
+                    // Update actual voltage value  
                     if (voltageResult !== null && voltageResult !== undefined && !isNaN(Number(voltageResult))) {
                         const newVoltage = Number(voltageResult);
                         if (newVoltage > 100 && newVoltage !== actualCDSVoltageValue) {
@@ -136,7 +140,7 @@
                         console.log("Voltage result invalid:", voltageResult);
                     }
 
-                    // Update current value
+                    // Update actual current value
                     if (currentResult !== null && currentResult !== undefined && !isNaN(Number(currentResult))) {
                         const newCurrent = Number(currentResult);
                         if (newCurrent > 0 && newCurrent !== actualCDSCurrentValue) {
@@ -147,7 +151,7 @@
                         console.log("Current result invalid:", currentResult);
                     }
 
-                    // Update chart with all new data
+                    // Prepare chart data for visualization
                     const powerKw = actualCDSPowerValue / 1000;
                     const voltage = (actualCDSVoltageValue > 100) ? actualCDSVoltageValue : 0;
                     const current = actualCDSCurrentValue;
@@ -156,10 +160,9 @@
 
                     const now = new Date().toLocaleTimeString();
                     
-                    // Für Auto Test: Neue Aufzeichnung wird am Anfang geleert
-                    // Außerhalb des Auto Tests: Alle Werte speichern (keine Begrenzung auf 50)
-                    // Die Begrenzung auf 50 Werte wurde entfernt für kontinuierliche Aufzeichnung
-                    
+                    // Data logging: All values are stored continuously, no limit on number of entries
+                    // The previous limit of 50 entries has been removed for uninterrupted recording
+                    // Each new measurement is appended to the history arrays for chart visualization
                     timeLabels.push(now);
                     voltageHistory.push(voltage);
                     currentHistory.push(current);
@@ -196,9 +199,9 @@
                     console.error("CDS polling error:", error);
                     // Don't reset values on error, keep last valid data
                 }
-            }, 2000); // Erhöht auf 2 Sekunden
+            }, 2000); // Polling interval: 2 seconds
 
-            //Sink Power Polling
+            // Start polling for sink power values
             await globalThis.api.invoke("startSinkPowerPolling", { ip: currentHostIp, intervalMs: 1000, timeoutMs: 3000 });
             sinkPowerInterval = setInterval(async () => {
             try {
@@ -216,11 +219,13 @@
         }
     })
 
+    // --- Lifecycle: onDestroy ---
+    // Cleans up all intervals and polling when component is destroyed
     onDestroy(() => {
-        // Cleanup page visibility listener
+        // Remove page visibility listener (if any)
         document.removeEventListener('visibilitychange', () => {});
         
-        // Stop all intervals first
+        // Stop all polling intervals
         if (maxCurrentInterval) {
             clearInterval(maxCurrentInterval);
             maxCurrentInterval = null;
@@ -247,20 +252,17 @@
             console.error("Error stopping Sink Power polling:", error);
         });
 
-        // Stop soft start if running (removed)
-        // if (softStartInterval) {
-        //     clearInterval(softStartInterval);
-        //     softStartInterval = null;
-        // }
-
-        // Destroy chart last
+        // Destroy chart instance
         if (chart) {
             chart.destroy();
             chart = null;
         }
     })
 
-    
+    /**
+     * Polls the maximum current value from the EVSE and updates chart limit.
+     * Called periodically via interval.
+     */
     async function pollMaxCurrentValue() {
     try {
         const result = await globalThis.api.invoke("readEvDuty", { ip: cds_ip });
@@ -281,107 +283,117 @@
     }
 }
 
-    
-
-    // Der neue Schalter-Button (ohne Soft Start)
-    async function handleToggleOutput() {
-        if (isProcessing || !configurationLoaded) return;
-        isProcessing = true;
-        try {
-            if (!started) {
-                // Output aktivieren
-                await globalThis.api.invoke("setOutput", { HostIp: currentHostIp, OutputState: true });
-                await globalThis.api.invoke("setOutput", { HostIp: voltageHostIP, OutputState: true });
-                started = true;
-                
-                // Sofort den gewünschten Setpoint senden (ohne Rampe)
-                await handleSendSetpoint();
-            } else {
-                // Output deaktivieren
-                await globalThis.api.invoke("setOutput", { HostIp: currentHostIp, OutputState: false });
-                await globalThis.api.invoke("setOutput", { HostIp: voltageHostIP, OutputState: false });
-                started = false;
-                setpointSent = false;
-            }
-        } finally {
-            isProcessing = false;
-        }
-    }
- $: if (started) {
-       if (!kwValueInterval) {
-        kwValueInterval = setInterval(() => {
-                        handleSendSetpoint();            
-        }, 100); 
-      }
-   } else {
-       if (kwValueInterval) {
-           clearInterval(kwValueInterval);
-           kwValueInterval = null;
-       }
-    }    
-    
-    async function handleSendSetpoint() {
+/**
+ * Handles output activation/deactivation and sends setpoint immediately.
+ * No ramping is performed; setpoint is sent directly.
+ */
+async function handleToggleOutput() {
     if (isProcessing || !configurationLoaded) return;
     isProcessing = true;
     try {
-        let setpointToSend = kwValue;
-        if (maxkWValueExternal !== null && kwValue > maxkWValueExternal) {
-            setpointToSend = maxkWValueExternal;
-        }
-        if (lastkWValue !== setpointToSend) {
-            const currentSetPoint = await globalThis.api.invoke("defineVoltageCurrent", { powerInkW: setpointToSend, voltage: voltageLimit });
-            await globalThis.api.invoke("setCurrentSetPoint", { HostIp: currentHostIp, CurrentSetPoint: currentSetPoint.current });
-            lastkWValue = setpointToSend;
-            setpointSent = true;
+        if (!started) {
+            // Activate output
+            await globalThis.api.invoke("setOutput", { HostIp: currentHostIp, OutputState: true });
+            await globalThis.api.invoke("setOutput", { HostIp: voltageHostIP, OutputState: true });
+            started = true;
+            
+            // Send desired setpoint immediately (no ramp)
+            await handleSendSetpoint();
+        } else {
+            // Deactivate output
+            await globalThis.api.invoke("setOutput", { HostIp: currentHostIp, OutputState: false });
+            await globalThis.api.invoke("setOutput", { HostIp: voltageHostIP, OutputState: false });
+            started = false;
         }
     } finally {
         isProcessing = false;
     }
 }
 
-// Soft Start Functions (removed - no ramping)
-// async function startSoftStart() { ... }
- 
+// --- Reactive: Setpoint Interval ---
+// Continuously sends setpoint while output is active
+$: if (started) {
+   if (!kwValueInterval) {
+    kwValueInterval = setInterval(() => {
+                    handleSendSetpoint();            
+    }, 100); 
+  }
+} else {
+   if (kwValueInterval) {
+       clearInterval(kwValueInterval);
+       kwValueInterval = null;
+   }
+}    
+
+/**
+ * Sends the current setpoint to the backend if changed.
+ * Ensures setpoint does not exceed external max value.
+ */
+async function handleSendSetpoint() {
+if (isProcessing || !configurationLoaded) return;
+isProcessing = true;
+try {
+    let setpointToSend = kwValue;
+    if (maxkWValueExternal !== null && kwValue > maxkWValueExternal) {
+        setpointToSend = maxkWValueExternal;
+    }
+    if (lastkWValue !== setpointToSend) {
+        const currentSetPoint = await globalThis.api.invoke("defineVoltageCurrent", { powerInkW: setpointToSend, voltage: voltageLimit });
+        await globalThis.api.invoke("setCurrentSetPoint", { HostIp: currentHostIp, CurrentSetPoint: currentSetPoint.current });
+        lastkWValue = setpointToSend;
+    }
+} finally {
+    isProcessing = false;
+}
+}
    
 </script>
 
+<!--
+Main UI container for session control and visualization.
+Includes: power setpoint slider, output toggle button, configuration status, error display, value table, and chart.
+-->
 <div>
     <!--<h1>{title}!</h1>-->
     <div class="slider-container">
-    <label for="kw-slider">Power Setpoint (kW)</label>
-    <input
-        id="kw-slider"
-        type="range"
-        min="1"
-        max={maxkWValue !== null ? maxkWValue : 22}
-        step="0.1"
-        bind:value={kwValue}
-    />
-    <span class="kw-value">{kwValue.toFixed(1)} kW</span>
-    <div class="button-row">
-    <button
-        class="toggle-btn {started ? 'deactivate' : ''}"
-        title={started ? "Deactivate Output" : "Activate Output"}
-        on:click={handleToggleOutput}
-        disabled={!configurationLoaded}    >
-        {#if started}
-            <i class="fa fa-power-off"></i> Deactivate
-        {:else}
-            <i class="fa fa-bolt"></i> Activate
-        {/if}
-    </button>
-</div>
+        <!-- Slider for selecting power setpoint (kW) -->
+        <label for="kw-slider">Power Setpoint (kW)</label>
+        <input
+            id="kw-slider"
+            type="range"
+            min="1"
+            max={maxkWValue !== null ? maxkWValue : 22}
+            step="0.1"
+            bind:value={kwValue}
+        />
+        <span class="kw-value">{kwValue.toFixed(1)} kW</span>
+        <!-- Button to activate/deactivate output -->
+        <div class="button-row">
+            <button
+                class="toggle-btn {started ? 'deactivate' : ''}"
+                title={started ? "Deactivate Output" : "Activate Output"}
+                on:click={handleToggleOutput}
+                disabled={!configurationLoaded}>
+                {#if started}
+                    <i class="fa fa-power-off"></i> Deactivate
+                {:else}
+                    <i class="fa fa-bolt"></i> Activate
+                {/if}
+            </button>
+        </div>
+    </div>
 
+    <!-- Configuration loading spinner and error message -->
     {#if !configurationLoaded && !configError}
+        <!-- Show spinner while configuration is loading -->
         <div class="hint">
-            
             <strong>Please Wait for Configuration.</strong>
-            
         </div>
         <div>
             <i class="fa fa-spinner fa-spin" style="margin-right:0.7em; font-size:2.2em; vertical-align:middle;"></i>
         </div>
-    {:else if configError }
+    {:else if configError}
+        <!-- Show error message if configuration failed -->
         <div class="config-error">
             <div class="error-header">
                 <i class="fa fa-exclamation-triangle error-icon"></i>
@@ -402,52 +414,53 @@
             </div>
         </div>
     {/if}
-</div>
+
+    <!-- Table of actual measured and calculated values -->
     <div class="actual-value">
-    <table class="value-table centered-table">
-        <tr>
-            <th>CDS Power Value</th>
-            <th>CDS Voltage L1</th>
-            <th>Sink Power Value</th>
-            <th>Max Current (EVSE)</th>
-            <th>Max Power (EVSE)</th>
-        </tr>
-        <tr>
-            <td>
-                {#if actualCDSPowerValue > 0}
-                    {(actualCDSPowerValue / 1000).toFixed(2)} kW
-                {:else}
-                0.00 kW
-            {/if}
-            </td>
-            <td>
-                {#if actualCDSVoltageValue > 100}
-                    {actualCDSVoltageValue.toFixed(1)} V
-                {:else}
-                0.0 V
-            {/if}
-            </td>
-            <td>
-            {#if sinkPowerValue && sinkPowerValue.successful}
-                {(Number(sinkPowerValue.msg) / 1000).toFixed(2)} kW
-            {:else}
-                n/a
-            {/if}
-        </td>
-            <td>
-                {maxCurrentValue !== null && maxCurrentValue >= 0 ? maxCurrentValue.toFixed(2) + ' A' : 'null'}
-            </td>
-            <td>
-                {maxkWValueExternal !== null && maxkWValueExternal >= 0 ? maxkWValueExternal.toFixed(2) + ' kW' : 'null'}
-            </td>
-        </tr>
-    </table>
-</div>
+        <table class="value-table centered-table">
+            <tr>
+                <th>CDS Power Value</th>
+                <th>CDS Voltage L1</th>
+                <th>Sink Power Value</th>
+                <th>Max Current (EVSE)</th>
+                <th>Max Power (EVSE)</th>
+            </tr>
+            <tr>
+                <td>
+                    {#if actualCDSPowerValue > 0}
+                        {(actualCDSPowerValue / 1000).toFixed(2)} kW
+                    {:else}
+                        0.00 kW
+                    {/if}
+                </td>
+                <td>
+                    {#if actualCDSVoltageValue > 100}
+                        {actualCDSVoltageValue.toFixed(1)} V
+                    {:else}
+                        0.0 V
+                    {/if}
+                </td>
+                <td>
+                    {#if sinkPowerValue && sinkPowerValue.successful}
+                        {(Number(sinkPowerValue.msg) / 1000).toFixed(2)} kW
+                    {:else}
+                        n/a
+                    {/if}
+                </td>
+                <td>
+                    {maxCurrentValue !== null && maxCurrentValue >= 0 ? maxCurrentValue.toFixed(2) + ' A' : 'null'}
+                </td>
+                <td>
+                    {maxkWValueExternal !== null && maxkWValueExternal >= 0 ? maxkWValueExternal.toFixed(2) + ' kW' : 'null'}
+                </td>
+            </tr>
+        </table>
+    </div>
 
-<div class="power-graph-container" style="margin-top:1.5em;">
-    <canvas bind:this={chartCanvas} width="1200" height="450"></canvas>
-</div>
-
+    <!-- Chart visualization of power, voltage, current, setpoint, and sink power -->
+    <div class="power-graph-container" style="margin-top:1.5em;">
+        <canvas bind:this={chartCanvas} width="1200" height="450"></canvas>
+    </div>
 </div>
 
 
@@ -696,5 +709,4 @@
         align-self: center;
     }
 }
-
 </style>

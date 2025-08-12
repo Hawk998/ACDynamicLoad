@@ -1,5 +1,19 @@
+// chartConfig.ts
+// Chart.js configuration and update utilities for AC dynamic load management application.
+// Provides chart creation, data updating, and power calculation helpers.
+
 import Chart from 'chart.js/auto';
 
+/**
+ * ChartData interface defines the structure of all data arrays used for chart visualization.
+ * - timeLabels: Array of time strings for the x-axis
+ * - voltageData: Array of voltage values (V)
+ * - currentData: Array of current values (A)
+ * - powerData: Array of measured power values (kW)
+ * - setpointData: Array of setpoint power values (kW)
+ * - sinkPowerData: Array of sink power values (kW)
+ * - maxPowerLimit: Maximum allowed power (kW) for reference line
+ */
 export interface ChartData {
     timeLabels: string[];
     voltageData: number[];
@@ -10,12 +24,22 @@ export interface ChartData {
     maxPowerLimit: number | null;
 }
 
-// Helper function to calculate power from voltage and current
+/**
+ * Calculates power values (kW) from voltage and current arrays.
+ * @param voltage Array of voltage values (V)
+ * @param current Array of current values (A)
+ * @returns Array of calculated power values (kW)
+ */
 export function calcPower(voltage: number[], current: number[]): number[] {
     return voltage.map((v, i) => (v * (current[i] || 0)) / 1000); // kW
 }
 
-// Create and configure the chart
+/**
+ * Creates and configures a Chart.js line chart for power, voltage, and current visualization.
+ * @param canvas HTMLCanvasElement to render the chart
+ * @param data ChartData object containing all data arrays
+ * @returns Chart.js instance
+ */
 export function createPowerChart(canvas: HTMLCanvasElement, data: ChartData): Chart {
     const maxPowerLine = data.maxPowerLimit !== null ? Array(data.timeLabels.length).fill(data.maxPowerLimit) : [];
     
@@ -24,6 +48,7 @@ export function createPowerChart(canvas: HTMLCanvasElement, data: ChartData): Ch
         data: {
             labels: data.timeLabels,
             datasets: [
+                // Voltage dataset
                 {
                     yAxisID: 'voltage',
                     data: data.voltageData,
@@ -34,6 +59,7 @@ export function createPowerChart(canvas: HTMLCanvasElement, data: ChartData): Ch
                     fill: true,
                     pointRadius: 0,
                 },
+                // Current dataset
                 {
                     yAxisID: 'current',
                     data: data.currentData,
@@ -44,6 +70,7 @@ export function createPowerChart(canvas: HTMLCanvasElement, data: ChartData): Ch
                     fill: true,
                     pointRadius: 0,
                 },
+                // Present power dataset
                 {
                     yAxisID: 'power',
                     data: data.powerData,
@@ -54,6 +81,7 @@ export function createPowerChart(canvas: HTMLCanvasElement, data: ChartData): Ch
                     fill: true,
                     pointRadius: 0,
                 },
+                // Setpoint power dataset
                 {
                     yAxisID: 'power',
                     data: data.setpointData,
@@ -65,6 +93,7 @@ export function createPowerChart(canvas: HTMLCanvasElement, data: ChartData): Ch
                     pointRadius: 0,
                     borderDash: [3, 3],
                 },
+                // Sink power dataset
                 {
                     yAxisID: 'power',
                     data: data.sinkPowerData,
@@ -75,6 +104,7 @@ export function createPowerChart(canvas: HTMLCanvasElement, data: ChartData): Ch
                     fill: false,
                     pointRadius: 0,
                 },
+                // Max power reference line
                 {
                     yAxisID: 'power',
                     data: maxPowerLine,
@@ -90,16 +120,16 @@ export function createPowerChart(canvas: HTMLCanvasElement, data: ChartData): Ch
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            devicePixelRatio: window.devicePixelRatio || 2, // Höhere Auflösung
+            devicePixelRatio: window.devicePixelRatio || 2, // High resolution for better quality
             animation: {
-                duration: 0 // Deaktiviert für bessere Performance
+                duration: 0 // Disabled for better performance
             },
             elements: {
                 line: {
-                    tension: 0.1 // Glatte Linien
+                    tension: 0.1 // Smooth lines
                 },
                 point: {
-                    radius: 0 // Keine Punkte für bessere Performance
+                    radius: 0 // No points for better performance
                 }
             },
             scales: {
@@ -128,7 +158,7 @@ export function createPowerChart(canvas: HTMLCanvasElement, data: ChartData): Ch
                         }
                     },
                     grid: {
-                        display: false // Nur eine Grid-Linie anzeigen
+                        display: false // Only one grid line
                     },
                     ticks: {
                         color: '#3e95cd',
@@ -159,8 +189,7 @@ export function createPowerChart(canvas: HTMLCanvasElement, data: ChartData): Ch
                             return value;
                         }
                     },
-                    // Separate Positionierung
-                    offset: true
+                    offset: true // Separate positioning
                 },
                 power: {
                     type: 'linear',
@@ -185,8 +214,7 @@ export function createPowerChart(canvas: HTMLCanvasElement, data: ChartData): Ch
                             return value;
                         }
                     },
-                    // Separate Positionierung
-                    offset: true
+                    offset: true // Separate positioning
                 },
             },
             plugins: {
@@ -219,13 +247,17 @@ export function createPowerChart(canvas: HTMLCanvasElement, data: ChartData): Ch
     });
 }
 
-// Update chart data with new values
+/**
+ * Updates chart data and labels with new values.
+ * @param chart Chart.js instance
+ * @param data ChartData object containing updated data arrays
+ */
 export function updateChartData(chart: Chart, data: ChartData): void {
     if (!chart) return;
 
     chart.data.labels = data.timeLabels;
 
-    // Update voltage dataset
+    // Update voltage dataset and label
     chart.data.datasets[0].data = data.voltageData;
     if (data.voltageData[data.voltageData.length - 1] != undefined) {
         chart.data.datasets[0].label = 'Voltage: ' + data.voltageData[data.voltageData.length - 1].toFixed(1) + ' V';
@@ -233,7 +265,7 @@ export function updateChartData(chart: Chart, data: ChartData): void {
         chart.data.datasets[0].label = 'Voltage';
     }
 
-    // Update current dataset
+    // Update current dataset and label
     chart.data.datasets[1].data = data.currentData;
     if (data.currentData[data.currentData.length - 1] != undefined) {
         chart.data.datasets[1].label = 'Current: ' + data.currentData[data.currentData.length - 1].toFixed(1) + ' A';
@@ -241,7 +273,7 @@ export function updateChartData(chart: Chart, data: ChartData): void {
         chart.data.datasets[1].label = 'Current';
     }
 
-    // Update present power dataset
+    // Update present power dataset and label
     chart.data.datasets[2].data = data.powerData;
     if (data.powerData[data.powerData.length - 1] != undefined) {
         chart.data.datasets[2].label = 'Present Power: ' + data.powerData[data.powerData.length - 1].toFixed(1) + ' kW';
@@ -249,7 +281,7 @@ export function updateChartData(chart: Chart, data: ChartData): void {
         chart.data.datasets[2].label = 'Present Power';
     }
 
-    // Update setpoint power dataset
+    // Update setpoint power dataset and label
     chart.data.datasets[3].data = data.setpointData;
     if (data.setpointData[data.setpointData.length - 1] != undefined) {
         chart.data.datasets[3].label = 'Setpoint Power: ' + data.setpointData[data.setpointData.length - 1].toFixed(1) + ' kW';
@@ -257,7 +289,7 @@ export function updateChartData(chart: Chart, data: ChartData): void {
         chart.data.datasets[3].label = 'Setpoint Power';
     }
 
-    // Update sink power dataset
+    // Update sink power dataset and label
     chart.data.datasets[4].data = data.sinkPowerData;
     if (data.sinkPowerData[data.sinkPowerData.length - 1] != undefined) {
         chart.data.datasets[4].label = 'Sink Power: ' + data.sinkPowerData[data.sinkPowerData.length - 1].toFixed(1) + ' kW';
@@ -265,15 +297,20 @@ export function updateChartData(chart: Chart, data: ChartData): void {
         chart.data.datasets[4].label = 'Sink Power';
     }
 
-    // Update max power line
+    // Update max power reference line and label
     const maxPowerLine = data.maxPowerLimit !== null ? Array(data.timeLabels.length).fill(data.maxPowerLimit) : [];
     chart.data.datasets[5].data = maxPowerLine;
     chart.data.datasets[5].label = `Max Power: ${data.maxPowerLimit || 0} kW`;
 
-    chart.update('none'); // 'none' für bessere Performance
+    chart.update('none'); // 'none' for better performance
 }
 
-// Update only the max power limit line
+/**
+ * Updates only the max power reference line in the chart.
+ * @param chart Chart.js instance
+ * @param maxPowerLimit New max power value (kW)
+ * @param timeLabelsLength Number of time labels (for line length)
+ */
 export function updateMaxPowerLine(chart: Chart, maxPowerLimit: number | null, timeLabelsLength: number): void {
     if (!chart) return;
 
