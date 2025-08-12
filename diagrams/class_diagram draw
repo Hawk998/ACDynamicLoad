@@ -1,0 +1,51 @@
+classDiagram
+    class ElectronApp {
+        - Hauptfenster
+        - IPC-Handler
+    }
+    class BrowserWindow
+    class SCPIHelper {
+        - SCPI-Steuerung
+    }
+    class CDSHelper {
+        - Messwertabfrage
+    }
+    class PollHelper {
+        - Polling & Logging
+    }
+    class GlobalPaths {
+        - Speicher- & Konfigpfade
+    }
+    class TabHelper {
+        - Tab-Verwaltung
+    }
+    class ChartConfig {
+        - Diagramm-Config
+    }
+    class SvelteStore {
+        - UI-Zustand
+    }
+    class Home {
+        - Startseite
+    }
+    class ConfigPage {
+        - Konfiguration
+    }
+    class RemotePage {
+        - Remote-Zugriff
+    }
+
+    ElectronApp --> BrowserWindow
+    ElectronApp --> SCPIHelper
+    ElectronApp --> CDSHelper
+    ElectronApp --> PollHelper
+    ElectronApp --> GlobalPaths
+    ElectronApp --> SvelteStore
+    ElectronApp --> TabHelper
+    ElectronApp --> ChartConfig
+
+    PollHelper --> GlobalPaths
+    GlobalPaths --> SvelteStore
+    SvelteStore --> Home
+    SvelteStore --> ConfigPage
+    SvelteStore --> RemotePage
