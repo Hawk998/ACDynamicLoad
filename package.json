@@ -1,0 +1,77 @@
+{
+  "name": "AC-Dynamic-Load",
+  "productName": "AC-Dynamic-Load",
+  "version": "1.0.1",
+  "description": "A tool template based on electron and svelte",
+  "author": {
+    "name": "johannes Ender",
+    "email": "johannes.ender@siemens.com"
+  },
+  "private": true,
+  "main": "dist/index.js",
+  "scripts": {
+    "compile:svelte": "rollup -c",
+    "compile:electron": "tsc --p ./tsconfig.electron.json",
+    "start:svelte:dev": "rollup -c -w",
+    "start:electron:dev": "npm run compile:electron && electron .",
+    "start:dev": "npm run compile:svelte && npm run start:electron:dev",
+    "build": "npm run compile:svelte && npm run compile:electron && electron-builder build --win",
+    "start": "electron .",
+    "check": "svelte-check"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "24.0.0",
+    "@rollup/plugin-node-resolve": "15.0.0",
+    "@rollup/plugin-terser": "0.4.0",
+    "@rollup/plugin-typescript": "11.0.0",
+    "@tsconfig/svelte": "3.0.0",
+    "electron": "28.1.3",
+    "electron-builder": "24.9.1",
+    "rollup": "3.15.0",
+    "rollup-plugin-css-only": "4.3.0",
+    "rollup-plugin-livereload": "2.0.0",
+    "rollup-plugin-svelte": "7.1.2",
+    "svelte": "3.55.0",
+    "svelte-check": "3.0.0",
+    "svelte-preprocess": "5.0.0",
+    "tslib": "2.5.0",
+    "typescript": "^4.9.0"
+  },
+  "dependencies": {
+    "@compact-charger/e2e-automation-controller": "2.0.4",
+    "chart.js": "^4.4.9",
+    "electron-log": "^5.4.1",
+    "node-pid-controller": "^1.0.1",
+    "sirv-cli": "2.0.0",
+    "types": "^0.1.1"
+  },
+  "build": {
+    "appId": "com.siemens.sveltron",
+    "artifactName": "${productName}-${version}.${ext}",
+    "npmRebuild": "false",
+    "directories": {
+      "output": "build"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "public/icon.png"
+    },
+    "portable": {
+      "artifactName": "${productName}-portable-${version}.${ext}"
+    },
+    "nsis": {
+      "artifactName": "${productName}-${version}.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "asar": true,
+    "files": [
+      "./config.json",
+      "./dist/**/*",
+      "./public/**/*"
+    ]
+  }
+}
