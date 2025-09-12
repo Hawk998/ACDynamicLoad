@@ -2,7 +2,6 @@
 // Helper functions for communicating with SCPI devices via TCP sockets.
 // Provides utilities for setting modes, output, current, and reading power values.
 
-import { get } from 'http';
 import * as net from 'net';
 import { logging } from './logging';
 const Port = 5025; // SCPI Port, default is 5025
@@ -23,14 +22,14 @@ function createClient(host: string): Promise<net.Socket> {
                 const idnResponse = await sendCommand(client, '*IDN?');
                 logging('Device Name:', idnResponse.msg); // Log the device identification
             } catch (err) {
-                console.error('Failed to retrieve device ID:', err.message);
+                console.error('Failed to retrieve device ID:', err);
                 client.end(); // Close the connection if the command fails
                 return reject(new Error('Failed to retrieve device ID'));
             }
             resolve(client); // Resolve the connected client
         });
         client.once('error', (err) => {
-            console.error(`Connection error to ${host}:${Port} - ${err.message}`);
+            console.error(`Connection error to ${host}:${Port} - ${err}`);
             reject(err);
         });
         // Log when the connection is closed
@@ -57,14 +56,14 @@ async function sendCommand(client: net.Socket, command: string) {
             }, 1000)
             client.once('data', (data) => {
                 clearTimeout(timeout);
-                logging('Received data:', data);
+                //logging('Received data:', data);
                 result.successful = true;
                 result.msg = data.toString().trim();
                 logging('sendCommand:resolve:', result)
                 resolve(result);
             });
             client.once('error', (err: TypeError) => {
-                reject(err.message);
+                reject(err);
             });
             client.write(command + '\n');
 
@@ -96,7 +95,7 @@ export async function setVoltagePriorityMode(args: { HostIp: string, OutputVolta
         await sendCommand(client, `SOUR:VOLT:LEV:IMM:AMPL ${args.OutputVoltageLimitCV}`); // set voltage limit in voltage priority mode
         logging('Output voltage limit was set to ' + args.OutputVoltageLimitCV + ' V');
     } catch (err) {
-        console.error('setVoltagePriorityMode:error:', err.message);
+        console.error('setVoltagePriorityMode:error:', err);
         throw err;
     } finally {
         if (client !== null) client.end();
@@ -121,7 +120,7 @@ export async function setCurrentPriorityMode(args: { HostIp: string, OutputCurre
         logging('Output current was set to ' + args.OutputCurrentLimitCC + ' A');
         await sendCommand(client, `SOUR:VOLT:LIM:POS:IMM:AMPL ${args.OutputVoltageLimitCC}`); // set voltage limit in current priority mode
     } catch (err) {
-        console.error('setCurrentPriorityMode:error:', err.message);
+        console.error('setCurrentPriorityMode:error:', err);
         throw err;
     } finally {
         if (client) client.end();
@@ -142,7 +141,7 @@ export async function setCurrentSetPoint(args: { HostIp: string, CurrentSetPoint
         await sendCommand(client, `SOUR:CURR ${args.CurrentSetPoint}`);
         logging('Output current was set to ' + args.CurrentSetPoint + ' A');
     } catch (err) {
-        console.error('setCurrentSetPoint:error:', err.message);
+        console.error('setCurrentSetPoint:error:', err);
         throw err;
     } finally {
         if (client) client.end();
@@ -166,7 +165,7 @@ export async function getSinkPowerValue(args: { HostIp: string}) {
         powerinW.successful = true;
         return powerinW;
     } catch (err) {        
-        console.error('getPowerValue:error:', err.message);
+        console.error('getPowerValue:error:', err);
         throw err;
     } finally {
         if (client) client.end();
@@ -192,7 +191,7 @@ export async function setOutput(args: { HostIp: string, OutputState: boolean }) 
         }
         
     } catch (err) {
-        console.error('setOutput:error:', err.message);
+        console.error('setOutput:error:', err);
         throw err
     } finally {
         if (client) client.end();
@@ -215,3 +214,39 @@ export function defineVoltageCurrent(args: { powerInkW: number, voltage: number 
     const current = parseFloat(((AdjustedPowerinkW * 1000) / args.voltage).toFixed(2))
     return { current }
 }
+
+/**
+ * Sets the group mode of the SCPI device (Master, Slave, or None).
+ *
+ * This function connects to the specified SCPI device via TCP, sends the group mode command,
+ * and logs the configuration. The available modes are:
+ * - 'MAST': Master mode
+ * - 'SLAV': Slave mode
+ * - 'NONE': No group mode
+ *
+ * Example usage:
+ *   await setGroupMode({ HostIp: '192.168.100.173', Group: 'MAST' });
+ *
+ * @param args Object containing:
+ *   - HostIp: IP address of the SCPI device
+ *   - Group: Desired group mode ('MAST', 'SLAV', 'NONE')
+ * @throws Error if the connection or command fails
+ */
+export async function setGroupMode(args: { HostIp: string, Group: string }) {
+    let client: net.Socket | null = null;
+    try {
+        client = await createClient(args.HostIp);
+        await sendCommand(client, `INST:GRO:FUNC ${args.Group}`);  
+        logging(`Sink ${args.HostIp} configured to Group Mode: ${args.Group}`);
+    } catch (err) {
+        console.error('setGroupMode:error:', err);
+        throw err;
+    } finally {
+        if (client) client.end();
+        logging('close scpi connection.');
+        
+    }
+}
+
+
+//setGroupMode({ HostIp: '192.168.100.162', Group: 'SLAV' }).then(()=>{console.log('res')})
