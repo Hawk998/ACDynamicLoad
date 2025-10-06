@@ -209,5 +209,5 @@ npm run electron      # Start Electron
 
 
 **Version**: 1.0.0  
-**Last Updated**: July 2025  
+**Last Updated**: September 2025  
 **Used Node Version**: 16.14.2
